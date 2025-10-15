@@ -1122,6 +1122,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
+name = "pamis_cdfr2026"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "embedded-io",
+ "embedded-svc",
+ "embedded-websocket",
+ "embuild",
+ "esp-idf-hal",
+ "esp-idf-svc",
+ "heapless 0.8.0",
+ "httparse",
+ "log",
+ "serde_json",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1484,23 +1501,6 @@ dependencies = [
  "once_cell",
  "rustix 1.1.2",
  "windows-sys 0.61.0",
-]
-
-[[package]]
-name = "test-pamis"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "embedded-io",
- "embedded-svc",
- "embedded-websocket",
- "embuild",
- "esp-idf-hal",
- "esp-idf-svc",
- "heapless 0.8.0",
- "httparse",
- "log",
- "serde_json",
 ]
 
 [[package]]
