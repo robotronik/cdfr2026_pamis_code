@@ -5,3 +5,8 @@ Le robot tourne sur un esp32 s3, le détail exact ce trouve sur le repo https://
 
 Utilisation du rust pour que le code reste entre les personnes queers qu club 
 
+
+## Wifi  
+pour modifier le wifi auquel se connecter, le SSID et le PASSWORD est stocker dans le fichier `.cargo/config.toml` 
+Merci de ne pas leak votre wifi... 
+
