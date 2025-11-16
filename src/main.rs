@@ -1,8 +1,10 @@
 use anyhow::{Error, Ok};
 use embedded_graphics::geometry::Size;
+use embedded_graphics::mono_font::{iso_8859_16::*, MonoTextStyle};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::rectangle;
+use embedded_graphics::primitives::*;
+use embedded_graphics::text::*;
 use embedded_graphics::*;
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{AnyOutputPin, IOPin, Output, OutputPin, PinDriver};
@@ -38,6 +40,32 @@ fn main() {
     screen.initSequence();
 
     screen.fill_screen(0xff00);
+    screen.set_pixel(100, 100, 0x1F).unwrap();
+    FreeRtos::delay_ms(200);
+    // clear the screen first
+    screen.fill_screen(0x0000); // black
+
+    // --- draw rectangle ---
+    let rect_style = PrimitiveStyleBuilder::new()
+        .fill_color(Rgb565::WHITE)
+        .build();
+
+    Rectangle::new(Point::new(10, 10), Size::new(60, 40))
+        .into_styled(rect_style)
+        .draw(&mut screen)
+        .unwrap();
+
+    // --- draw single red pixel ---
+    screen
+        .set_pixel(120, 120, Rgb565::RED.into_storage())
+        .unwrap();
+
+    // --- draw text ---
+    let text_style = MonoTextStyle::new(&FONT_6X10, Rgb565::GREEN);
+
+    Text::new("Hello", Point::new(20, 100), text_style)
+        .draw(&mut screen)
+        .unwrap();
 }
 impl<'a> Dimensions for RoundScreen<'a> {
     fn bounding_box(&self) -> primitives::Rectangle {
@@ -98,8 +126,31 @@ impl<'a> RoundScreen<'a> {
         self.cs.set_high().unwrap();
     }
     pub fn set_pixel(&mut self, x: u16, y: u16, color: u16) -> Result<(), anyhow::Error> {
+        // Column address
+        self.sendcmd(&[0x2A]);
+        self.senddata(&[
+            (x >> 8) as u8,
+            (x & 0xFF) as u8, // start
+            (x >> 8) as u8,
+            (x & 0xFF) as u8, // end = same pixel
+        ]);
+
+        // Row address
+        self.sendcmd(&[0x2B]);
+        self.senddata(&[
+            (y >> 8) as u8,
+            (y & 0xFF) as u8,
+            (y >> 8) as u8,
+            (y & 0xFF) as u8,
+        ]);
+
+        // Memory write
+        self.sendcmd(&[0x2C]);
+        self.senddata(&[(color >> 8) as u8, (color & 0xFF) as u8]);
+
         Ok(())
     }
+
     fn fill_screen(&mut self, value: u16) {
         let mut arr = [0x00; 240 * 2];
         for i in 0..240 {
