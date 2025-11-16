@@ -63,7 +63,7 @@ fn main() {
     // --- draw text ---
     let text_style = MonoTextStyle::new(&FONT_6X10, Rgb565::CSS_HOT_PINK);
 
-    Text::new("CDFR 2026 !!! <3", Point::new(20, 100), text_style)
+    Text::new("CDFR 2026 !!! <3 ♡♥", Point::new(20, 100), text_style)
         .draw(&mut screen)
         .unwrap();
 }
@@ -93,7 +93,7 @@ impl<'a> DrawTarget for RoundScreen<'a> {
         let mut span_x0 = 0i32;
         let mut span_x1 = 0i32;
 
-        let mut last_x = -1312; // sentinel removes `!started` logic
+        let mut last_x = -1312;
         let mut last_y = -1312;
 
         for Pixel(pos, color) in pixels.into_iter() {
