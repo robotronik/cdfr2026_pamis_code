@@ -7,6 +7,14 @@ use esp_idf_hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::spi::{SpiDeviceDriver, SpiDriver};
 
+#[allow(unused)]
+pub enum Rotation {
+    Rotation0degres,
+    Rotation90degres,
+    Rotation180degres,
+    Rotation270degres,
+}
+
 pub struct RoundScreen<'a> {
     spi_device_driver: SpiDeviceDriver<'a, SpiDriver<'a>>,
     dc: PinDriver<'a, AnyOutputPin, Output>,
@@ -98,6 +106,19 @@ impl<'a> RoundScreen<'a> {
             cs,
             rst,
         }
+    }
+
+    pub fn set_rotation(&mut self, rotation: Rotation) -> Result<()> {
+        let madctl = match rotation {
+            Rotation::Rotation0degres => 0x08,
+            Rotation::Rotation90degres => 0x68,
+            Rotation::Rotation180degres => 0xC8,
+            Rotation::Rotation270degres => 0xA8,
+        };
+
+        self.sendcmd(&[0x36])?; // MADCTL register
+        self.senddata(&[madctl])?;
+        Ok(())
     }
 
     fn sendcmd(&mut self, value: &[u8]) -> Result<()> {
@@ -226,8 +247,8 @@ impl<'a> RoundScreen<'a> {
         self.senddata(&[0x00])?;
         self.senddata(&[0x20])?;
 
-        self.sendcmd(&[0x36])?;
-        self.senddata(&[0xa8])?; //Set as vertical screen
+        self.sendcmd(&[0x36])?; //Memory Access Control
+        self.senddata(&[0x08])?; //Set RGB
 
         self.sendcmd(&[0x3A])?;
         self.senddata(&[0x05])?;

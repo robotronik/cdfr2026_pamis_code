@@ -16,6 +16,8 @@ use esp_idf_hal::units::Hertz;
 mod round_screen;
 use round_screen::RoundScreen;
 
+use crate::round_screen::Rotation;
+
 fn main() {
     let peripherals = Peripherals::take().unwrap();
     let configuration = DriverConfig::new();
@@ -40,6 +42,7 @@ fn main() {
     screen.set_pixel(100, 100, 0x1F).unwrap();
     FreeRtos::delay_ms(1000);
     // clear the screen first
+    screen.set_rotation(Rotation::Rotation0degres).unwrap();
     screen.fill_screen(0x0000).unwrap(); // black
 
     // --- draw rectangle ---
