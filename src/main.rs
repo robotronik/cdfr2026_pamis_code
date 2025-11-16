@@ -86,77 +86,55 @@ impl<'a> DrawTarget for RoundScreen<'a> {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        let mut started = false;
-
-        let mut span_y = 0;
-        let mut span_x0 = 0;
-        let mut span_x1 = 0;
-
         let mut buf = [0u8; 240 * 2];
-        let mut buf_len = 0;
+        let mut buf_len = 0usize;
 
-        let mut last_x = -1;
-        let mut last_y = -1;
+        let mut span_y = 0i32;
+        let mut span_x0 = 0i32;
+        let mut span_x1 = 0i32;
+
+        let mut last_x = -1312; // sentinel removes `!started` logic
+        let mut last_y = -1312;
 
         for Pixel(pos, color) in pixels.into_iter() {
             let x = pos.x as i32;
             let y = pos.y as i32;
 
-            let contiguous = y == last_y && x == last_x + 1;
-
-            if !started || !contiguous {
-                // flush previous span
-                if started && buf_len > 0 {
+            // New span?
+            if y != last_y || x != last_x + 1 {
+                // Flush old span if it exists
+                if buf_len != 0 {
                     self.set_window(span_x0 as u16, span_y as u16, span_x1 as u16, span_y as u16)?;
                     self.senddata(&buf[..buf_len]);
                     buf_len = 0;
                 }
 
-                // start new span
+                // Start new span
                 span_y = y;
                 span_x0 = x;
                 span_x1 = x;
-                started = true;
             } else {
-                // extend span horizontally
                 span_x1 = x;
             }
 
-            // push pixel to buffer
-            let raw: u16 = color.into_storage();
+            // Push pixel
+            let raw = color.into_storage();
             buf[buf_len] = (raw >> 8) as u8;
-            buf[buf_len + 1] = (raw & 0xFF) as u8;
+            buf[buf_len + 1] = raw as u8;
             buf_len += 2;
 
             last_x = x;
             last_y = y;
         }
 
-        // flush the last span
-        if started && buf_len > 0 {
+        // Flush last span
+        if buf_len != 0 {
             self.set_window(span_x0 as u16, span_y as u16, span_x1 as u16, span_y as u16)?;
             self.senddata(&buf[..buf_len]);
         }
 
         Ok(())
     }
-
-    /*
-        fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
-        where
-            I: IntoIterator<Item = Pixel<Self::Color>>,
-        {
-            let bb = self.bounding_box();
-            pixels
-                .into_iter()
-                .filter(|&Pixel(pos, _color)| bb.contains(pos))
-                .try_for_each(|Pixel(pos, color)| {
-                    let color: pixelcolor::raw::RawU16 = color.into();
-                    let color: u16 = color.into_inner();
-                    self.set_pixel(pos.x as u16, pos.y as u16, color)
-                })
-        }
-    */
 }
 
 impl<'a> RoundScreen<'a> {
