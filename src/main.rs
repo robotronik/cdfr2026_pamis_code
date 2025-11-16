@@ -29,38 +29,15 @@ fn main() {
     )
     .unwrap();
     let spi_config = SpiConfig::new().baudrate(Hertz(40000000));
-    let mut device =
-        SpiDeviceDriver::new(myspi, Some(peripherals.pins.gpio6), &spi_config).unwrap();
-    let mut dc = PinDriver::output(peripherals.pins.gpio3.downgrade_output()).unwrap();
-    let mut cs = PinDriver::output(peripherals.pins.gpio4.downgrade_output()).unwrap();
-    let mut rst = PinDriver::output(peripherals.pins.gpio5).unwrap();
+    let device = SpiDeviceDriver::new(myspi, Some(peripherals.pins.gpio6), &spi_config).unwrap();
+    let dc = PinDriver::output(peripherals.pins.gpio3.downgrade_output()).unwrap();
+    let cs = PinDriver::output(peripherals.pins.gpio4.downgrade_output()).unwrap();
+    let rst = PinDriver::output(peripherals.pins.gpio5.downgrade_output()).unwrap();
 
-    initSequence!();
+    let mut screen = RoundScreen::new(device, dc, cs, rst);
+    screen.initSequence();
 
-    //======================================
-    println!("0");
-    send!(cmd: &[0x2a]);
-    send!(data: &[0x00,0x10,0x00,0xef]);
-
-    for i in 0..240 {
-        send!(cmd: &[0x2b]);
-        send!(data: &[0x00,i ,0x00,0xef]); //decalage en haut et bas
-        send!(cmd: &[0x2c]);
-        send!(data: &[i;20*2]);
-    }
-    println!("1");
-    FreeRtos::delay_ms(4000);
-    send!(cmd: &[0x20]); //inversion on
-    FreeRtos::delay_ms(2000);
-    send!(cmd: &[0x21]); //inversion off
-    FreeRtos::delay_ms(2000);
-    fill_screen!([0x00, 0x00]);
-    println!("done");
-
-    /*let screen = RoundScreen {
-        spi_device_driver: device,
-        dc: dc,
-    };*/
+    screen.fill_screen(0xff00);
 }
 impl<'a> Dimensions for RoundScreen<'a> {
     fn bounding_box(&self) -> primitives::Rectangle {
@@ -94,6 +71,20 @@ impl<'a> DrawTarget for RoundScreen<'a> {
 }
 
 impl<'a> RoundScreen<'a> {
+    fn new(
+        spi: SpiDeviceDriver<'a, SpiDriver<'a>>,
+        dc: PinDriver<'a, AnyOutputPin, Output>,
+        cs: PinDriver<'a, AnyOutputPin, Output>,
+        rst: PinDriver<'a, AnyOutputPin, Output>,
+    ) -> Self {
+        RoundScreen {
+            spi_device_driver: spi,
+            dc,
+            cs,
+            rst,
+        }
+    }
+
     fn sendcmd(&mut self, value: &[u8]) {
         self.dc.set_low().unwrap();
         self.cs.set_low().unwrap();
@@ -109,22 +100,22 @@ impl<'a> RoundScreen<'a> {
     pub fn set_pixel(&mut self, x: u16, y: u16, color: u16) -> Result<(), anyhow::Error> {
         Ok(())
     }
-    fn fill_screen(&mut self, value: &[u8]) {
-            let mut arr = [0x00;240*2];
-            for i in 0..240 {
-                arr[2*i] = $a;
-                arr[2*i + 1] = $b;
-            }
-            send!(cmd: &[0x2a]);
-            send!(data: &[0x00,0x00,0x00,0xef]);
-            send!(cmd: &[0x2b]);
-            send!(data: &[0x00,0x00 ,0x00,0xef]); //decalage en haut et bas
-            send!(cmd: &[0x2c]);
-            for _ in 0..240 {
-                send!(data: &arr)
-            }
-        }};
+    fn fill_screen(&mut self, value: u16) {
+        let mut arr = [0x00; 240 * 2];
+        for i in 0..240 {
+            arr[2 * i] = (value >> 8) as u8;
+            arr[2 * i + 1] = (value & 0xff) as u8;
+        }
+        self.sendcmd(&[0x2a]);
+        self.senddata(&[0x00, 0x00, 0x00, 0xef]);
+        self.sendcmd(&[0x2b]);
+        self.senddata(&[0x00, 0x00, 0x00, 0xef]); //decalage en haut et bas
+        self.sendcmd(&[0x2c]);
+        for _ in 0..240 {
+            self.senddata(&arr);
+        }
     }
+
     fn initSequence(&mut self) {
         FreeRtos::delay_ms(100);
         self.rst.set_low().unwrap();
@@ -363,6 +354,6 @@ impl<'a> RoundScreen<'a> {
         FreeRtos::delay_ms(120);
         self.sendcmd(&[0x29]);
         FreeRtos::delay_ms(20);
-        fill_screen!([0x00, 0x1f]);
+        self.fill_screen(0x001F);
     }
 }
