@@ -34,13 +34,13 @@ fn main() {
     let rst = PinDriver::output(peripherals.pins.gpio5.downgrade_output()).unwrap();
 
     let mut screen = RoundScreen::new(device, dc, cs, rst);
-    screen.init_sequence();
+    screen.init_sequence().unwrap();
 
-    screen.fill_screen(0xff00);
+    screen.fill_screen(0xff00).unwrap();
     screen.set_pixel(100, 100, 0x1F).unwrap();
     FreeRtos::delay_ms(1000);
     // clear the screen first
-    screen.fill_screen(0x0000); // black
+    screen.fill_screen(0x0000).unwrap(); // black
 
     // --- draw rectangle ---
     let rect_style = PrimitiveStyleBuilder::new()
