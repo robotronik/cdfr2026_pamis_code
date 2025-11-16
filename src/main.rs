@@ -41,16 +41,16 @@ fn main() {
 
     screen.fill_screen(0xff00);
     screen.set_pixel(100, 100, 0x1F).unwrap();
-    FreeRtos::delay_ms(200);
+    FreeRtos::delay_ms(1000);
     // clear the screen first
     screen.fill_screen(0x0000); // black
 
     // --- draw rectangle ---
     let rect_style = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb565::WHITE)
+        .fill_color(Rgb565::CSS_CYAN)
         .build();
 
-    Rectangle::new(Point::new(10, 10), Size::new(60, 40))
+    Rectangle::new(Point::new(75, 75), Size::new(60, 40))
         .into_styled(rect_style)
         .draw(&mut screen)
         .unwrap();
@@ -61,9 +61,9 @@ fn main() {
         .unwrap();
 
     // --- draw text ---
-    let text_style = MonoTextStyle::new(&FONT_6X10, Rgb565::GREEN);
+    let text_style = MonoTextStyle::new(&FONT_6X10, Rgb565::CSS_HOT_PINK);
 
-    Text::new("Hello", Point::new(20, 100), text_style)
+    Text::new("CDFR 2026 !!! <3", Point::new(20, 100), text_style)
         .draw(&mut screen)
         .unwrap();
 }
@@ -86,16 +86,77 @@ impl<'a> DrawTarget for RoundScreen<'a> {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        let bb = self.bounding_box();
-        pixels
-            .into_iter()
-            .filter(|&Pixel(pos, _color)| bb.contains(pos))
-            .try_for_each(|Pixel(pos, color)| {
-                let color: pixelcolor::raw::RawU16 = color.into();
-                let color: u16 = color.into_inner();
-                self.set_pixel(pos.x as u16, pos.y as u16, color)
-            })
+        let mut started = false;
+
+        let mut span_y = 0;
+        let mut span_x0 = 0;
+        let mut span_x1 = 0;
+
+        let mut buf = [0u8; 240 * 2];
+        let mut buf_len = 0;
+
+        let mut last_x = -1;
+        let mut last_y = -1;
+
+        for Pixel(pos, color) in pixels.into_iter() {
+            let x = pos.x as i32;
+            let y = pos.y as i32;
+
+            let contiguous = y == last_y && x == last_x + 1;
+
+            if !started || !contiguous {
+                // flush previous span
+                if started && buf_len > 0 {
+                    self.set_window(span_x0 as u16, span_y as u16, span_x1 as u16, span_y as u16)?;
+                    self.senddata(&buf[..buf_len]);
+                    buf_len = 0;
+                }
+
+                // start new span
+                span_y = y;
+                span_x0 = x;
+                span_x1 = x;
+                started = true;
+            } else {
+                // extend span horizontally
+                span_x1 = x;
+            }
+
+            // push pixel to buffer
+            let raw: u16 = color.into_storage();
+            buf[buf_len] = (raw >> 8) as u8;
+            buf[buf_len + 1] = (raw & 0xFF) as u8;
+            buf_len += 2;
+
+            last_x = x;
+            last_y = y;
+        }
+
+        // flush the last span
+        if started && buf_len > 0 {
+            self.set_window(span_x0 as u16, span_y as u16, span_x1 as u16, span_y as u16)?;
+            self.senddata(&buf[..buf_len]);
+        }
+
+        Ok(())
     }
+
+    /*
+        fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+        where
+            I: IntoIterator<Item = Pixel<Self::Color>>,
+        {
+            let bb = self.bounding_box();
+            pixels
+                .into_iter()
+                .filter(|&Pixel(pos, _color)| bb.contains(pos))
+                .try_for_each(|Pixel(pos, color)| {
+                    let color: pixelcolor::raw::RawU16 = color.into();
+                    let color: u16 = color.into_inner();
+                    self.set_pixel(pos.x as u16, pos.y as u16, color)
+                })
+        }
+    */
 }
 
 impl<'a> RoundScreen<'a> {
@@ -125,27 +186,38 @@ impl<'a> RoundScreen<'a> {
         self.spi_device_driver.write(value).unwrap();
         self.cs.set_high().unwrap();
     }
-    pub fn set_pixel(&mut self, x: u16, y: u16, color: u16) -> Result<(), anyhow::Error> {
-        // Column address
+
+    /// Sets the drawing window (column + row address set)
+    pub fn set_window(&mut self, x0: u16, y0: u16, x1: u16, y1: u16) -> Result<(), anyhow::Error> {
+        // Column range
         self.sendcmd(&[0x2A]);
         self.senddata(&[
-            (x >> 8) as u8,
-            (x & 0xFF) as u8, // start
-            (x >> 8) as u8,
-            (x & 0xFF) as u8, // end = same pixel
+            (x0 >> 8) as u8,
+            (x0 & 0xFF) as u8,
+            (x1 >> 8) as u8,
+            (x1 & 0xFF) as u8,
         ]);
 
-        // Row address
+        // Row range
         self.sendcmd(&[0x2B]);
         self.senddata(&[
-            (y >> 8) as u8,
-            (y & 0xFF) as u8,
-            (y >> 8) as u8,
-            (y & 0xFF) as u8,
+            (y0 >> 8) as u8,
+            (y0 & 0xFF) as u8,
+            (y1 >> 8) as u8,
+            (y1 & 0xFF) as u8,
         ]);
 
-        // Memory write
+        // Write-memory command (no data yet)
         self.sendcmd(&[0x2C]);
+
+        Ok(())
+    }
+
+    pub fn set_pixel(&mut self, x: u16, y: u16, color: u16) -> Result<(), anyhow::Error> {
+        // define a 1×1 window
+        self.set_window(x, y, x, y)?;
+
+        // push the pixel
         self.senddata(&[(color >> 8) as u8, (color & 0xFF) as u8]);
 
         Ok(())
